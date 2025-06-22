@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Alias Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+      background-color: #f9f9f9;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    #wordDisplay {
+      font-size: 6vw;
+      margin: 40px 0;
+    }
+
+    textarea {
+      width: 90%;
+      height: 100px;
+      margin-bottom: 20px;
+      font-size: 16px;
+    }
+
+    #timer {
+      font-size: 8vw;
+      margin: 20px 0;
+    }
+
+    .button-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    button {
+      font-size: 6vw;
+      padding: 20px 40px;
+      width: 80%;
+      max-width: 300px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    .yes {
+      background-color: #4CAF50;
+      color: white;
+    }
+
+    .skip {
+      background-color: #f44336;
+      color: white;
+    }
+
+    input[type="number"] {
+      font-size: 18px;
+      padding: 5px;
+      width: 80px;
+    }
+
+    h1, h2, label, p {
+      font-size: 5vw;
+    }
+
+    @media (min-width: 600px) {
+      #wordDisplay { font-size: 48px; }
+      #timer { font-size: 48px; }
+      button { font-size: 36px; }
+      h1, h2, label, p { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Alias Game</h1>
+
+  <div id="config">
+    <label for="roundTime">Time per round attempt (seconds):</label>
+    <input type="number" id="roundTime" value="60"><br><br>
+
+    <div id="wordInputs"></div>
+    <button onclick="addRoundInput()">Add Round</button><br><br>
+    <button onclick="prepareRound(0, 0)">Start Game</button>
+  </div>
+
+  <div id="roundStart" class="hidden">
+    <h2 id="status"></h2>
+    <button onclick="startRound()">Start!</button>
+  </div>
+
+  <div id="game" class="hidden">
+    <div id="timer"></div>
+    <div id="wordDisplay"></div>
+    <div class="button-container">
+      <button class="yes" onclick="handleGuess(true)">YES</button>
+      <button class="skip" onclick="handleGuess(false)">SKIP</button>
+    </div>
+  </div>
+
+  <div id="roundEnd" class="hidden">
+    <h2>Round attempt ended!</h2>
+    <p id="score"></p>
+    <p id="summary"></p>
+    <button id="nextBtn" onclick="nextAttempt()">Next Attempt</button>
+  </div>
+
+  <div id="gameEnd" class="hidden">
+    <h2>Game Over!</h2>
+    <p id="finalScore"></p>
+  </div>
+
+  <audio id="beepSound1">
+    <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
+    Your browser does not support the audio element.
+  </audio>
+  <audio id="beepSound2">
+    <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
+    Your browser does not support the audio element.
+  </audio>
+  <audio id="beepSound3">
+    <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
+    Your browser does not support the audio element.
+  </audio>
+
+  <script>
+    let wordLists = [];
+    let currentRound = 0;
+    let currentAttempt = 0;
+    let currentWords = [];
+    let wordIndex = 0;
+    let score = 0;
+    let skipped = 0;
+    let totalScore = 0;
+    let totalSkipped = 0;
+    let roundTimer;
+    let timeLeft;
+    let timeOver = false;
+    let playedWordsPerRound = [];
+
+    function addRoundInput() {
+      const div = document.createElement('div');
+      div.innerHTML = `<h3>Round ${wordLists.length + 1}</h3>
+                       <textarea placeholder="Enter words separated by commas"></textarea>`;
+      document.getElementById('wordInputs').appendChild(div);
+      wordLists.push([]);
+    }
+
+    function prepareRound(round, attempt) {
+      const textareas = document.querySelectorAll('#wordInputs textarea');
+      wordLists = Array.from(textareas).map(t => t.value.split(',').map(w => w.trim()).filter(w => w));
+      playedWordsPerRound = wordLists.map(list => list.map(_ => false));
+      currentRound = round;
+      currentAttempt = attempt;
+      document.getElementById('config').classList.add('hidden');
+      showRoundStart();
+    }
+
+    function showRoundStart() {
+      document.getElementById('roundStart').classList.remove('hidden');
+      document.getElementById('status').textContent = `Round ${currentRound + 1}, Attempt ${currentAttempt + 1}`;
+    }
+
+    function startRound() {
+      score = 0;
+      skipped = 0;
+      wordIndex = 0;
+      timeOver = false;
+      const roundWords = wordLists[currentRound];
+      const playedFlags = playedWordsPerRound[currentRound];
+      currentWords = roundWords.map((w, i) => ({ word: w, played: playedFlags[i] }));
+
+      document.getElementById('roundStart').classList.add('hidden');
+      document.getElementById('game').classList.remove('hidden');
+      timeLeft = parseInt(document.getElementById('roundTime').value);
+      updateTimer();
+      roundTimer = setInterval(() => {
+        timeLeft--;
+        updateTimer();
+        if (timeLeft <= 3 && timeLeft > 0) {
+          if (timeLeft == 3)
+            document.getElementById('beepSound3').play();
+          else if (timeLeft == 2)
+            document.getElementById('beepSound2').play();
+          else if (timeLeft == 1)
+            document.getElementById('beepSound1').play();
+        }
+        if (timeLeft <= 0) {
+          clearInterval(roundTimer);
+          timeOver = true;
+          document.getElementById('beepSound3').play();
+        }
+      }, 1000);
+      showNextWord();
+    }
+
+    function updateTimer() {
+      document.getElementById('timer').textContent = `Time left: ${timeLeft}s`;
+    }
+
+    function showNextWord() {
+      while (wordIndex < currentWords.length && currentWords[wordIndex].played) {
+        wordIndex++;
+      }
+      if (wordIndex < currentWords.length) {
+        document.getElementById('wordDisplay').textContent = currentWords[wordIndex].word;
+      } else {
+        endAttempt();
+      }
+    }
+
+    function handleGuess(correct) {
+      if (wordIndex < currentWords.length) {
+        const originalIndex = wordLists[currentRound].indexOf(currentWords[wordIndex].word);
+        playedWordsPerRound[currentRound][originalIndex] = true;
+        currentWords[wordIndex].played = true;
+        if (correct) {
+          score++;
+        } else {
+          skipped++;
+        }
+        wordIndex++;
+        if (timeOver || wordIndex >= currentWords.length) {
+          endAttempt();
+        } else {
+          showNextWord();
+        }
+      }
+    }
+
+    function endAttempt() {
+      clearInterval(roundTimer);
+      document.getElementById('game').classList.add('hidden');
+      document.getElementById('roundEnd').classList.remove('hidden');
+      document.getElementById('score').textContent = `Guessed: ${score}, Skipped: ${skipped}`;
+      totalScore += score;
+      totalSkipped += skipped;
+
+      const nextBtn = document.getElementById('nextBtn');
+      if (currentAttempt === 0) {
+        nextBtn.textContent = 'Next Attempt';
+      } else {
+        const roundSummary = document.createElement('p');
+        roundSummary.innerHTML = `<strong>Round ${currentRound + 1} Summary:</strong> Guessed: ${totalScore}, Skipped: ${totalSkipped}`;
+        document.getElementById('summary').appendChild(roundSummary);
+        nextBtn.textContent = 'Next Round';
+      }
+    }
+
+    function nextAttempt() {
+      currentAttempt++;
+      if (currentAttempt < 2) {
+        wordIndex = 0;
+        document.getElementById('roundEnd').classList.add('hidden');
+        document.getElementById('summary').innerHTML = '';
+        showRoundStart();
+      } else {
+        currentRound++;
+        currentAttempt = 0;
+        totalScore = 0;
+        totalSkipped = 0;
+        document.getElementById('summary').innerHTML = '';
+        if (currentRound < wordLists.length) {
+          document.getElementById('roundEnd').classList.add('hidden');
+          showRoundStart();
+        } else {
+          document.getElementById('roundEnd').classList.add('hidden');
+          document.getElementById('gameEnd').classList.remove('hidden');
+          document.getElementById('finalScore').textContent = `Total guessed: ${totalScore}, Total skipped: ${totalSkipped}`;
+        }
+      }
+    }
+
+    for (let i = 0; i < 5; i++) addRoundInput();
+  </script>
+</body>
+</html>
