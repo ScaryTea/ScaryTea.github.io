@@ -1,288 +1,461 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Alias Game</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <title>Alias Game — Multi‑Team</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 20px; background-color: #f9f9f9; }
+    .hidden { display: none; }
 
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      margin: 0;
-      padding: 20px;
-      background-color: #f9f9f9;
-    }
+    h1 { margin-top: 0; }
+    h1, h2, h3, label, p { font-size: 5vw; }
+    @media (min-width: 600px) { h1, h2, h3, label, p { font-size: 24px; } }
 
-    .hidden {
-      display: none;
-    }
+    #wordDisplay { font-size: 10vw; margin: 40px 0; }
+    #timer { font-size: 8vw; margin: 20px 0; }
+    @media (min-width: 600px) { #wordDisplay, #timer { font-size: 48px; } }
 
-    #wordDisplay {
-      font-size: 10vw;
-      margin: 40px 0;
-    }
+    .button-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+    .button-row > button { flex: 1 1 200px; }
 
-    textarea {
-      width: 90%;
-      height: 100px;
-      margin-bottom: 20px;
-      font-size: 16px;
-    }
+    button { font-size: 6vw; padding: 16px 24px; width: 80%; max-width: 320px; border: none; border-radius: 12px; cursor: pointer; }
+    @media (min-width: 600px) { button { font-size: 24px; } }
 
-    #timer {
-      font-size: 8vw;
-      margin: 20px 0;
-    }
+    .yes { background-color: #4CAF50; color: #fff; }
+    .skip { background-color: #f44336; color: #fff; }
+    .secondary { background-color: #e0e0e0; color: #222; }
+    .primary { background-color: #1976d2; color: #fff; }
 
-    .button-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 20px;
-    }
+    input[type="number"], input[type="text"] { font-size: 18px; padding: 6px 10px; }
+    textarea { width: 100%; min-height: 90px; margin: 8px 0 16px; font-size: 16px; }
 
-    button {
-      font-size: 6vw;
-      padding: 20px 40px;
-      width: 80%;
-      max-width: 300px;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-    }
+    .config-grid { display: grid; grid-template-columns: 1fr; gap: 16px; max-width: 980px; margin: 0 auto; }
+    .team-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 16px; text-align: left; }
+    .team-header { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+    .team-name { width: 100%; max-width: 360px; }
 
-    .yes {
-      background-color: #4CAF50;
-      color: white;
-    }
+    .rounds-wrap { display: grid; grid-template-columns: 1fr; gap: 8px; }
+    .round-box { background: #fafafa; border: 1px solid #eee; border-radius: 10px; padding: 12px; }
 
-    .skip {
-      background-color: #f44336;
-      color: white;
-    }
+    .top-controls { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; align-items: center; }
 
-    input[type="number"] {
-      font-size: 18px;
-      padding: 5px;
-      width: 80px;
-    }
+    table.score { width: 100%; max-width: 980px; margin: 0 auto; border-collapse: collapse; }
+    table.score th, table.score td { border: 1px solid #ddd; padding: 8px; }
+    table.score th { background: #f0f0f0; }
 
-    h1, h2, label, p {
-      font-size: 5vw;
-    }
-
-    @media (min-width: 600px) {
-      #wordDisplay { font-size: 48px; }
-      #timer { font-size: 48px; }
-      button { font-size: 36px; }
-      h1, h2, label, p { font-size: 24px; }
-    }
+    .mini { font-size: .9em; color: #666; }
   </style>
 </head>
 <body>
-  <h1>Alias Game</h1>
+  <h1>Alias Game — Multi‑Team</h1>
 
+  <!-- CONFIGURATION -->
   <div id="config">
-    <label for="roundTime">Time per round attempt (seconds):</label>
-    <input type="number" id="roundTime" value="60"><br><br>
+    <div class="top-controls">
+      <label for="roundTime">Time per attempt (seconds):</label>
+      <input type="number" id="roundTime" min="5" value="60" />
 
-    <div id="wordInputs"></div>
-    <button onclick="addRoundInput()">Add Round</button><br><br>
-    <button onclick="prepareRound(0, 0)">Start Game</button>
+      <button class="secondary" id="addTeamBtn">Add Team</button>
+      <button class="secondary" id="addRoundBtn">Add Round</button>
+    </div>
+
+    <p class="mini">Enter words for <strong>each team</strong> and <strong>each round</strong> (comma‑separated). You can paste lines too; we'll split by comma.</p>
+
+    <div id="teamsWrap" class="config-grid"></div>
+
+    <div class="button-row" style="margin-top: 12px;">
+      <button class="primary" id="startBtn">Start Game</button>
+      <button class="secondary" id="resetConfigBtn">Reset</button>
+    </div>
   </div>
 
+  <!-- PRE-ROUND / ATTEMPT SCREEN -->
   <div id="roundStart" class="hidden">
     <h2 id="status"></h2>
-    <button onclick="startRound()">Start!</button>
+    <div class="button-row">
+      <button class="primary" onclick="startRound()">Start!</button>
+    </div>
   </div>
 
+  <!-- GAMEPLAY -->
   <div id="game" class="hidden">
     <div id="timer"></div>
     <div id="wordDisplay"></div>
-    <div class="button-container">
+    <div class="button-row">
       <button class="yes" onclick="handleGuess(true)">YES</button>
       <button class="skip" onclick="handleGuess(false)">SKIP</button>
     </div>
   </div>
 
+  <!-- END OF ATTEMPT -->
   <div id="roundEnd" class="hidden">
-    <h2>Round attempt ended!</h2>
+    <h2>Attempt finished</h2>
     <p id="score"></p>
-    <p id="summary"></p>
-    <button id="nextBtn" onclick="nextAttempt()">Next Attempt</button>
+    <div id="perRoundSummary"></div>
+    <div class="button-row">
+      <button class="primary" id="nextBtn" onclick="nextAttemptOrTurn()">Next</button>
+    </div>
   </div>
 
+  <!-- END OF GAME -->
   <div id="gameEnd" class="hidden">
     <h2>Game Over!</h2>
-    <p id="finalScore"></p>
+    <div id="finalScore"></div>
+    
   </div>
 
+  <!-- Sounds (preserved) -->
   <audio id="beepSound1">
-    <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
-    Your browser does not support the audio element.
+    <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg" />
   </audio>
   <audio id="beepSound2">
-    <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
-    Your browser does not support the audio element.
+    <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg" />
   </audio>
   <audio id="beepSound3">
-    <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
-    Your browser does not support the audio element.
+    <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg" />
   </audio>
 
   <script>
-    let wordLists = [];
-    let currentRound = 0;
-    let currentAttempt = 0;
+    // ------------------ State ------------------
+    let teams = []; // { name: string, wordLists: string[][], playedFlags: boolean[][] }
+    let teamScores = []; // per team: { totalGuessed, totalSkipped, perRound: [{guessed, skipped}] }
+
+    let roundsCount = 0;
+
+    let currentTeamIdx = 0;
+    let currentRound = 0; // 0-based
+    let currentAttempt = 0; // 0 or 1
+
     let currentWords = [];
     let wordIndex = 0;
-    let score = 0;
-    let skipped = 0;
-    let totalScore = 0;
-    let totalSkipped = 0;
-    let roundTimer;
-    let timeLeft;
+    let scoreAttempt = 0;
+    let skippedAttempt = 0;
+
+    let roundTimer = null;
+    let timeLeft = 0;
     let timeOver = false;
-    let playedWordsPerRound = [];
 
-    function addRoundInput() {
-      const div = document.createElement('div');
-      div.innerHTML = `<h3>Round ${wordLists.length + 1}</h3>
-                       <textarea placeholder="Enter words separated by commas"></textarea>`;
-      document.getElementById('wordInputs').appendChild(div);
-      wordLists.push([]);
+    // ------------- UI Helpers -------------
+    function $(id) { return document.getElementById(id); }
+    function show(id) { $(id).classList.remove('hidden'); }
+    function hide(id) { $(id).classList.add('hidden'); }
+
+    // ------------- Config Builder -------------
+    const teamsWrap = $('teamsWrap');
+    const addTeamBtn = $('addTeamBtn');
+    const addRoundBtn = $('addRoundBtn');
+    const startBtn = $('startBtn');
+    const resetConfigBtn = $('resetConfigBtn');
+
+    // Initialize with 2 teams and 5 rounds (like original added 5 rounds)
+    function initialBuild() {
+      teamsWrap.innerHTML = '';
+      roundsCount = 5;
+      for (let t = 0; t < 2; t++) addTeamCard();
+      updateAllTeamRoundUIs();
     }
 
-    function prepareRound(round, attempt) {
-      const textareas = document.querySelectorAll('#wordInputs textarea');
-      wordLists = Array.from(textareas).map(t => t.value.split(',').map(w => w.trim()).filter(w => w));
-      playedWordsPerRound = wordLists.map(list => list.map(_ => false));
-      currentRound = round;
-      currentAttempt = attempt;
-      document.getElementById('config').classList.add('hidden');
-      showRoundStart();
+    function addTeamCard() {
+      const idx = teamsWrap.children.length;
+      const card = document.createElement('div');
+      card.className = 'team-card';
+      card.dataset.teamIndex = String(idx);
+      card.innerHTML = `
+        <div class="team-header">
+          <h3 style="margin:0;">Team ${idx + 1}</h3>
+          <input type="text" class="team-name" placeholder="Team name" value="Team ${idx + 1}" />
+        </div>
+        <div class="rounds-wrap"></div>
+        <div class="button-row" style="margin-top:8px;">
+          <button class="secondary" onclick="removeTeam(${idx})">Remove Team</button>
+        </div>
+      `;
+      teamsWrap.appendChild(card);
+      // Build rounds inputs for this team
+      buildRoundsUIForTeam(card.querySelector('.rounds-wrap'));
     }
 
-    function showRoundStart() {
-      document.getElementById('roundStart').classList.remove('hidden');
-      document.getElementById('status').textContent = `Round ${currentRound + 1}, Attempt ${currentAttempt + 1}`;
+    function buildRoundsUIForTeam(roundsWrapEl) {
+      roundsWrapEl.innerHTML = '';
+      for (let r = 0; r < roundsCount; r++) {
+        const rb = document.createElement('div');
+        rb.className = 'round-box';
+        rb.innerHTML = `
+          <strong>Round ${r + 1}</strong>
+          <textarea placeholder="words separated by commas"></textarea>
+        `;
+        roundsWrapEl.appendChild(rb);
+      }
     }
+
+    function updateAllTeamRoundUIs() {
+      document.querySelectorAll('.team-card .rounds-wrap').forEach(buildRoundsUIForTeam);
+    }
+
+    window.removeTeam = function(i) {
+      const cards = Array.from(teamsWrap.children);
+      if (i < 0 || i >= cards.length) return;
+      teamsWrap.removeChild(cards[i]);
+      // Re-index labels and remove buttons
+      Array.from(teamsWrap.children).forEach((el, idx) => {
+        el.dataset.teamIndex = String(idx);
+        el.querySelector('h3').textContent = `Team ${idx + 1}`;
+        el.querySelector('button.secondary').setAttribute('onclick', `removeTeam(${idx})`);
+      });
+    }
+
+    addTeamBtn.addEventListener('click', () => {
+      addTeamCard();
+    });
+
+    addRoundBtn.addEventListener('click', () => {
+      roundsCount += 1;
+      updateAllTeamRoundUIs();
+    });
+
+    resetConfigBtn.addEventListener('click', initialBuild);
+
+    // ------------- Ingest Config -------------
+    function readConfig() {
+      const time = parseInt($('roundTime').value, 10);
+      if (!Number.isFinite(time) || time <= 0) {
+        alert('Please set a valid time per attempt.');
+        return null;
+      }
+
+      const teamCards = Array.from(document.querySelectorAll('.team-card'));
+      if (teamCards.length === 0) {
+        alert('Please add at least one team.');
+        return null;
+      }
+
+      const outTeams = [];
+      const outScores = [];
+
+      for (const card of teamCards) {
+        const nameInput = card.querySelector('.team-name');
+        const name = nameInput.value.trim() || nameInput.placeholder.trim();
+        const roundsWrapEl = card.querySelector('.rounds-wrap');
+        const textareas = Array.from(roundsWrapEl.querySelectorAll('textarea'));
+        const wordLists = textareas.map(t => (
+          t.value
+            .split(/[,\n]/g)
+            .map(w => w.trim())
+            .filter(Boolean)
+        ));
+        outTeams.push({ name, wordLists, playedFlags: wordLists.map(list => list.map(_ => false)) });
+        outScores.push({ totalGuessed: 0, totalSkipped: 0, perRound: Array.from({length: wordLists.length}, () => ({ guessed: 0, skipped: 0 })) });
+      }
+
+      // Validate all teams have equal rounds
+      const roundLens = new Set(outTeams.map(t => t.wordLists.length));
+      if (roundLens.size !== 1) {
+        alert('All teams must have the same number of rounds. Use "Add Round" to sync.');
+        return null;
+      }
+
+      return { timePerAttempt: time, outTeams, outScores };
+    }
+
+    startBtn.addEventListener('click', () => {
+      const cfg = readConfig();
+      if (!cfg) return;
+      teams = cfg.outTeams;
+      teamScores = cfg.outScores;
+      roundsCount = teams[0].wordLists.length;
+
+      // Reset indexes
+      currentTeamIdx = 0;
+      currentRound = 0;
+      currentAttempt = 0;
+
+      hide('config');
+      updateStatusHeader();
+      show('roundStart');
+    });
+
+    // ------------- Round Flow -------------
+    function updateStatusHeader() {
+      const teamName = teams[currentTeamIdx].name;
+      $('status').textContent = `${teamName} — Round ${currentRound + 1}, Attempt ${currentAttempt + 1}`;
+          }
 
     function startRound() {
-      score = 0;
-      skipped = 0;
+      scoreAttempt = 0;
+      skippedAttempt = 0;
       wordIndex = 0;
       timeOver = false;
-      const roundWords = wordLists[currentRound];
-      const playedFlags = playedWordsPerRound[currentRound];
+
+      const roundWords = teams[currentTeamIdx].wordLists[currentRound];
+      const playedFlags = teams[currentTeamIdx].playedFlags[currentRound];
       currentWords = roundWords.map((w, i) => ({ word: w, played: playedFlags[i] }));
 
-      document.getElementById('roundStart').classList.add('hidden');
-      document.getElementById('game').classList.remove('hidden');
-      timeLeft = parseInt(document.getElementById('roundTime').value);
+      hide('roundStart');
+      show('game');
+
+      timeLeft = parseInt($('roundTime').value, 10);
       updateTimer();
       roundTimer = setInterval(() => {
         timeLeft--;
         updateTimer();
         if (timeLeft <= 3 && timeLeft > 0) {
-          if (timeLeft == 3)
-            document.getElementById('beepSound3').play();
-          else if (timeLeft == 2)
-            document.getElementById('beepSound2').play();
-          else if (timeLeft == 1)
-            document.getElementById('beepSound1').play();
+          if (timeLeft === 3) $('beepSound3').play();
+          else if (timeLeft === 2) $('beepSound2').play();
+          else if (timeLeft === 1) $('beepSound1').play();
         }
         if (timeLeft <= 0) {
           clearInterval(roundTimer);
           timeOver = true;
-          document.getElementById('beepSound3').play();
+          $('beepSound3').play();
         }
       }, 1000);
       showNextWord();
     }
 
     function updateTimer() {
-      document.getElementById('timer').textContent = `Time left: ${timeLeft}s`;
+      $('timer').textContent = `Time left: ${timeLeft}s`;
     }
 
     function showNextWord() {
-      while (wordIndex < currentWords.length && currentWords[wordIndex].played) {
-        wordIndex++;
-      }
+      while (wordIndex < currentWords.length && currentWords[wordIndex].played) wordIndex++;
       if (wordIndex < currentWords.length) {
-        document.getElementById('wordDisplay').textContent = currentWords[wordIndex].word;
+        $('wordDisplay').textContent = currentWords[wordIndex].word;
       } else {
         endAttempt();
       }
     }
 
     function handleGuess(correct) {
-      if (wordIndex < currentWords.length) {
-        const originalIndex = wordLists[currentRound].indexOf(currentWords[wordIndex].word);
-        playedWordsPerRound[currentRound][originalIndex] = true;
-        currentWords[wordIndex].played = true;
-        if (correct) {
-          score++;
-        } else {
-          skipped++;
-        }
-        wordIndex++;
-        if (timeOver || wordIndex >= currentWords.length) {
-          endAttempt();
-        } else {
-          showNextWord();
-        }
-      }
+      if (wordIndex >= currentWords.length) return;
+
+      const team = teams[currentTeamIdx];
+      const originalIndex = team.wordLists[currentRound].indexOf(currentWords[wordIndex].word);
+      team.playedFlags[currentRound][originalIndex] = true;
+      currentWords[wordIndex].played = true;
+
+      if (correct) { scoreAttempt++; } else { skippedAttempt++; }
+      wordIndex++;
+
+      if (timeOver || wordIndex >= currentWords.length) endAttempt();
+      else showNextWord();
     }
 
     function endAttempt() {
       clearInterval(roundTimer);
-      document.getElementById('game').classList.add('hidden');
-      document.getElementById('roundEnd').classList.remove('hidden');
-      document.getElementById('score').textContent = `Guessed: ${score}, Skipped: ${skipped}`;
-      totalScore += score;
-      totalSkipped += skipped;
+      hide('game');
+      show('roundEnd');
 
-      const nextBtn = document.getElementById('nextBtn');
+      $('score').textContent = `Guessed: ${scoreAttempt}, Skipped: ${skippedAttempt}`;
+
+      // Accumulate per-team per-round
+      const s = teamScores[currentTeamIdx];
+      s.totalGuessed += scoreAttempt;
+      s.totalSkipped += skippedAttempt;
+      s.perRound[currentRound].guessed += scoreAttempt;
+      s.perRound[currentRound].skipped += skippedAttempt;
+
+      // Show per-round subtotal for this team
+      const pr = s.perRound[currentRound];
+      $('perRoundSummary').innerHTML = `<p><strong>${teams[currentTeamIdx].name} — Round ${currentRound + 1} subtotal:</strong> Guessed: ${pr.guessed}, Skipped: ${pr.skipped}</p>`;
+
+      $('nextBtn').textContent = getNextLabel();
+    }
+
+    function getNextLabel() {
+      if (currentAttempt === 0) return 'Next Attempt';
+      // attempt 1 done -> either next team or next round
+      if (currentTeamIdx < teams.length - 1) return 'Next Team';
+      if (currentRound < roundsCount - 1) return 'Next Round';
+      return 'View Results';
+    }
+
+    function nextAttemptOrTurn() {
+      // attempt progression: two attempts per team per round
       if (currentAttempt === 0) {
-        nextBtn.textContent = 'Next Attempt';
-      } else {
-        const roundSummary = document.createElement('p');
-        roundSummary.innerHTML = `<strong>Round ${currentRound + 1} Summary:</strong> Guessed: ${totalScore}, Skipped: ${totalSkipped}`;
-        document.getElementById('summary').appendChild(roundSummary);
-        nextBtn.textContent = 'Next Round';
+        // move to second attempt for same team/round
+        currentAttempt = 1;
+        hide('roundEnd');
+        updateStatusHeader();
+        show('roundStart');
+        return;
       }
-    }
 
-    function nextAttempt() {
-      currentAttempt++;
-      if (currentAttempt < 2) {
-        wordIndex = 0;
-        document.getElementById('roundEnd').classList.add('hidden');
-        document.getElementById('summary').innerHTML = '';
-        showRoundStart();
-      } else {
+      // finished both attempts for this team in this round → advance team
+      currentAttempt = 0;
+
+      if (currentTeamIdx < teams.length - 1) {
+        currentTeamIdx++;
+        hide('roundEnd');
+        updateStatusHeader();
+        show('roundStart');
+        return;
+      }
+
+      // finished all teams in this round → next round
+      if (currentRound < roundsCount - 1) {
         currentRound++;
-        currentAttempt = 0;
-        totalScore = 0;
-        totalSkipped = 0;
-        document.getElementById('summary').innerHTML = '';
-        if (currentRound < wordLists.length) {
-          document.getElementById('roundEnd').classList.add('hidden');
-          showRoundStart();
-        } else {
-          document.getElementById('roundEnd').classList.add('hidden');
-          document.getElementById('gameEnd').classList.remove('hidden');
-          document.getElementById('finalScore').textContent = `Total guessed: ${totalScore}, Total skipped: ${totalSkipped}`;
-        }
+        currentTeamIdx = 0;
+        hide('roundEnd');
+        updateStatusHeader();
+        show('roundStart');
+        return;
       }
+
+      // finished last team of last round → game over
+      hide('roundEnd');
+      showFinalScores();
     }
 
-    for (let i = 0; i < 5; i++) addRoundInput();
+    function showFinalScores() {
+      hide('roundStart');
+      hide('game');
+      show('gameEnd');
+
+      // Build scoreboard table
+      const rows = teams.map((t, i) => ({ name: t.name, guessed: teamScores[i].totalGuessed, skipped: teamScores[i].totalSkipped }));
+      rows.sort((a, b) => b.guessed - a.guessed);
+
+      const table = document.createElement('table');
+      table.className = 'score';
+      table.innerHTML = `
+        <thead>
+          <tr><th>#</th><th>Team</th><th>Guessed</th><th>Skipped</th></tr>
+        </thead>
+        <tbody>
+          ${rows.map((r, idx) => `<tr><td>${idx + 1}</td><td>${escapeHtml(r.name)}</td><td>${r.guessed}</td><td>${r.skipped}</td></tr>`).join('')}
+        </tbody>
+      `;
+
+      const perRoundBlocks = teams.map((t, i) => {
+        const pr = teamScores[i].perRound
+          .map((rr, idx) => `<li>Round ${idx + 1}: Guessed ${rr.guessed}, Skipped ${rr.skipped}</li>`) 
+          .join('');
+        return `<h3 style="margin:16px 0 6px;">${escapeHtml(t.name)}</h3><ul style="text-align:left;max-width:980px;margin:0 auto;">${pr}</ul>`;
+      }).join('');
+
+      $('finalScore').innerHTML = '';
+      $('finalScore').appendChild(table);
+      const div = document.createElement('div');
+      div.innerHTML = perRoundBlocks;
+      $('finalScore').appendChild(div);
+    }
+
+    function backToConfig() {
+      // Soft reset (keep what users typed)
+      hide('roundStart'); hide('game'); hide('roundEnd'); hide('gameEnd');
+      show('config');
+      if (roundTimer) clearInterval(roundTimer);
+    }
+
+    // ------------- Utilities -------------
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[s]));
+    }
+
+    // ------------- Boot -------------
+    initialBuild();
   </script>
 </body>
 </html>
