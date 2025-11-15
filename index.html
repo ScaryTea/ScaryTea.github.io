@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Alias Game — Multi‑Team</title>
+  <title>Alias Game — Multi-Team</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     * { box-sizing: border-box; }
@@ -49,7 +49,7 @@
   </style>
 </head>
 <body>
-  <h1>Alias Game — Multi‑Team</h1>
+  <h1>Alias Game — Multi-Team</h1>
 
   <!-- CONFIGURATION -->
   <div id="config">
@@ -61,7 +61,7 @@
       <button class="secondary" id="addRoundBtn">Add Round</button>
     </div>
 
-    <p class="mini">Enter words for <strong>each team</strong> and <strong>each round</strong> (comma‑separated). You can paste lines too; we'll split by comma.</p>
+    <p class="mini">Enter words for <strong>each team</strong> and <strong>each round</strong> (comma-separated). You can paste lines too; we'll split by comma.</p>
 
     <div id="teamsWrap" class="config-grid"></div>
 
@@ -103,10 +103,9 @@
   <div id="gameEnd" class="hidden">
     <h2>Game Over!</h2>
     <div id="finalScore"></div>
-    
   </div>
 
-  <!-- Sounds (preserved) -->
+  <!-- Sounds -->
   <audio id="beepSound1">
     <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg" />
   </audio>
@@ -126,7 +125,7 @@
 
     let currentTeamIdx = 0;
     let currentRound = 0; // 0-based
-    let currentAttempt = 0; // 0 or 1
+    let currentAttempt = 0; // 0 or 1 (Player 1 / Player 2)
 
     let currentWords = [];
     let wordIndex = 0;
@@ -149,10 +148,10 @@
     const startBtn = $('startBtn');
     const resetConfigBtn = $('resetConfigBtn');
 
-    // Initialize with 2 teams and 5 rounds (like original added 5 rounds)
+    // Initialize with 2 teams and 1 round (was 5 rounds)
     function initialBuild() {
       teamsWrap.innerHTML = '';
-      roundsCount = 5;
+      roundsCount = 1;
       for (let t = 0; t < 2; t++) addTeamCard();
       updateAllTeamRoundUIs();
     }
@@ -279,8 +278,8 @@
     // ------------- Round Flow -------------
     function updateStatusHeader() {
       const teamName = teams[currentTeamIdx].name;
-      $('status').textContent = `${teamName} — Round ${currentRound + 1}, Attempt ${currentAttempt + 1}`;
-          }
+      $('status').textContent = `${teamName} — Round ${currentRound + 1}, Player ${currentAttempt + 1}`;
+    }
 
     function startRound() {
       scoreAttempt = 0;
@@ -294,6 +293,9 @@
 
       hide('roundStart');
       show('game');
+
+      // Beep also when user starts the attempt
+      $('beepSound3').play();
 
       timeLeft = parseInt($('roundTime').value, 10);
       updateTimer();
@@ -363,49 +365,73 @@
       $('nextBtn').textContent = getNextLabel();
     }
 
+    // Compute what the next state will be, given current state and desired order:
+    // For each round: all teams play Player 1, then all teams play Player 2.
+    function getNextState() {
+      if (!teams.length) return null;
+      const lastTeamIndex = teams.length - 1;
+
+      let nextTeamIdx = currentTeamIdx;
+      let nextAttempt = currentAttempt;
+      let nextRound = currentRound;
+
+      if (currentAttempt === 0) {
+        // Finished Player 1 for current team
+        if (currentTeamIdx < lastTeamIndex) {
+          // Next team, still Player 1
+          nextTeamIdx++;
+        } else {
+          // Last team finished Player 1 -> move to Player 2 of first team in this round
+          nextAttempt = 1;
+          nextTeamIdx = 0;
+        }
+      } else {
+        // currentAttempt === 1 (Player 2)
+        if (currentTeamIdx < lastTeamIndex) {
+          // Next team, still Player 2
+          nextTeamIdx++;
+        } else {
+          // Last team finished Player 2 -> move to next round or end
+          if (currentRound < roundsCount - 1) {
+            nextRound++;
+            nextAttempt = 0;
+            nextTeamIdx = 0;
+          } else {
+            // No more rounds
+            return null;
+          }
+        }
+      }
+
+      return { teamIdx: nextTeamIdx, attempt: nextAttempt, round: nextRound };
+    }
+
     function getNextLabel() {
-      if (currentAttempt === 0) return 'Next Attempt';
-      // attempt 1 done -> either next team or next round
-      if (currentTeamIdx < teams.length - 1) return 'Next Team';
-      if (currentRound < roundsCount - 1) return 'Next Round';
-      return 'View Results';
+      const next = getNextState();
+      if (!next) return 'View Results';
+      if (next.round !== currentRound) return 'Next Round';
+      if (next.attempt !== currentAttempt) return 'Next Player';
+      if (next.teamIdx !== currentTeamIdx) return 'Next Team';
+      return 'Next';
     }
 
     function nextAttemptOrTurn() {
-      // attempt progression: two attempts per team per round
-      if (currentAttempt === 0) {
-        // move to second attempt for same team/round
-        currentAttempt = 1;
+      const next = getNextState();
+
+      if (!next) {
+        // finished last player of last team of last round → game over
         hide('roundEnd');
-        updateStatusHeader();
-        show('roundStart');
+        showFinalScores();
         return;
       }
 
-      // finished both attempts for this team in this round → advance team
-      currentAttempt = 0;
+      currentTeamIdx = next.teamIdx;
+      currentAttempt = next.attempt;
+      currentRound = next.round;
 
-      if (currentTeamIdx < teams.length - 1) {
-        currentTeamIdx++;
-        hide('roundEnd');
-        updateStatusHeader();
-        show('roundStart');
-        return;
-      }
-
-      // finished all teams in this round → next round
-      if (currentRound < roundsCount - 1) {
-        currentRound++;
-        currentTeamIdx = 0;
-        hide('roundEnd');
-        updateStatusHeader();
-        show('roundStart');
-        return;
-      }
-
-      // finished last team of last round → game over
       hide('roundEnd');
-      showFinalScores();
+      updateStatusHeader();
+      show('roundStart');
     }
 
     function showFinalScores() {
